@@ -5,21 +5,98 @@ output:
     keep_md: true
 ---
 
-
 ## Loading and preprocessing the data
+```{r}
+library(dplyr)
+library(ggplot2)
+```
 
 
+```{r}
+Sys.setlocale("LC_TIME", "en_US")
+stepdata=read.csv("./activity.csv")
+stepdata$date=as.Date(stepdata$date)
+stepdata$weekday=weekdays(stepdata$date)
+head(stepdata)
+```
+
+## Histogram of the total number of steps taken each day
+
+```{r}
+steps_per_day = stepdata %>% group_by(date) %>% summarise(step.by.date=sum(steps,na.rm=TRUE))
+head(steps_per_day )
+```
+
+```{r}
+hist(steps_per_day$step.by.date, main = "Total number of steps taken per day", xlab = "Total steps taken per day", col = "darkblue", ylim = c(0,20), breaks = seq(0,25000, by=2500))
+
+```
 
 ## What is mean total number of steps taken per day?
-
-
+```{r}
+mean_steps=mean(steps_per_day$step.by.date)
+median_steps=median(steps_per_day$step.by.date)
+cat("Mean =",mean_steps, "| Median =", median_steps)
+```
 
 ## What is the average daily activity pattern?
+Time series plot for daily step taken
+```{r}
+mean_steps_by_date=stepdata %>% group_by(date) %>% summarise(mean.steps=mean(steps,na.rm=TRUE))
+with(mean_steps_by_date,plot(date,mean.steps,type="l",lwd=2))
+```
 
+
+Time series plot for average daily pattern by intervals
+```{r}
+mean_steps_by_interval=stepdata %>% group_by(interval) %>% summarise(mean.steps=mean(steps,na.rm=TRUE))
+head(mean_steps_by_interval)
+```
+
+```{r}
+with(mean_steps_by_interval,plot(interval,mean.steps,type="l",xlab = "Interval", ylab = "Average number of steps", main = "Average number of steps per interval"))
+```
+
+5-minute interval, on average across all the days in the dataset, contains the maximum number of steps
+```{r}
+mean_steps_by_interval[which.max(mean_steps_by_interval$mean.steps),]$interval
+```
 
 
 ## Imputing missing values
+```{r}
+na.values=sum(is.na(stepdata$steps))
+cat("Total numbers of NAs is ",na.values,", this acounts for ",na.values/nrow(stepdata
+                                                                              )*100, "% of the dataset")
+```
+The strategy is to fill all of the NAs by the average steps of the correspondent intervals
 
+
+```{r}
+filled_NA=left_join(stepdata,mean_steps_by_interval,by="interval")
+filled_NA$steps=ifelse(is.na(filled_NA$steps), yes=filled_NA$mean.steps,no=filled_NA$steps)
+head(filled_NA)
+fill_NA_sum= filled_NA %>% group_by(date) %>% summarise(total.steps=sum(steps))
+```
+
+Histogram of the total number of steps taken each day after missing values are imputed
+```{r}
+par(mfrow = c(1, 2))
+hist(steps_per_day$step.by.date,main="total steps each day in the \noriginal data",breaks = seq(0,25000, by=2500),xlab = "Total steps by date")
+hist(fill_NA_sum$total.steps,main="total steps each day in the \nclean data",breaks = seq(0,25000, by=2500),xlab = "Total steps by date")
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+filled_NA$datetype=ifelse((filled_NA$weekday %in% c("Saturday","Sunday")),"weekend","weekday")
+pattern=filled_NA %>% group_by(interval, datetype) %>% summarise(average.steps=mean(steps))
+```
+
+Compare the average steps for weekday and weekend
+
+```{r  echo = TRUE }
+g=ggplot(pattern,aes(interval,average.steps,col=datetype))
+g+geom_line()+facet_wrap(.~datetype,ncol=1, nrow=2) + labs(title = "Average daily steps by date type", x = "Interval", y = "Average number of steps")
+```
+
